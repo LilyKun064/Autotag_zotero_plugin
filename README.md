@@ -60,3 +60,9 @@ Autotag sends only item metadata such as:
 ## Support
 
 If something doesn’t work or you have ideas for improvement, please open an issue on GitHub.
+
+## Acknowledgments
+
+This Zotero plugin is built using the excellent [Zotero Plugin Template](https://github.com/windingwind/zotero-plugin-template) created by **windingwind**.  
+Their work provided the foundation and build system that made this plugin possible.  
+Huge thanks to them for maintaining such a well-structured and developer-friendly template.
