@@ -1,0 +1,21 @@
+# dot files
+.DS_Store
+
+# Node.js
+node_modules
+pnpm-lock.yaml
+yarn.lock
+
+# TSC
+tsconfig.tsbuildinfo
+
+# Scaffold
+.env
+.scaffold
+build
+logs
+
+# API
+API.txt
+*.env
+.env

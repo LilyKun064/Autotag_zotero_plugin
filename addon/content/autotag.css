@@ -1,0 +1,12 @@
+/* addon/content/autotag.css */
+
+/* Autotag menu item icons */
+menuitem.autotag-menuitem {
+  /* ✅ use addonRef ("autotag"), not addonID */
+  list-style-image: url("chrome://autotag/content/icons/Jesse.png");
+}
+
+menuitem.autotag-menuitem .menu-iconic-icon {
+  width: 16px;
+  height: 16px;
+}

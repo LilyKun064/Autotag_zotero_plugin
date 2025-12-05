@@ -1,0 +1,22 @@
+{
+  "manifest_version": 2,
+  "name": "Autotag",
+  "version": "0.0.1",
+  "description": "Automatically assign tags to papers using LLMs.",
+  "homepage_url": "https://github.com/LilyKun064/zotero_autotagging",
+  "author": "Chenkun (CJ) Jiang",
+
+  "icons": {
+    "48": "content/icons/Jesse.png",
+    "96": "content/icons/Jesse.png"
+  },
+
+  "applications": {
+    "zotero": {
+      "id": "autotag@LilyKun064",
+      "strict_min_version": "6.999",
+      "strict_max_version": "7.0.*"
+    }
+  }
+}
+
