@@ -6,6 +6,7 @@ Your mental map of it quietly collapses.
 **Autotag** is a Zotero plugin that helps researchers recover structure and meaning in large literature collections by automatically generating useful, content aware tags directly inside Zotero.
 
 It is built for people who rely on Zotero every day and have reached the point where folders, memory, and manual tagging no longer scale.
+
 ---
 
 ## Why this exists
