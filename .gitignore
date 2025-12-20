@@ -19,3 +19,7 @@ logs
 API.txt
 *.env
 .env
+
+
+# Old README
+README_old.md
