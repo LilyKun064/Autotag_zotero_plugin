@@ -25,6 +25,64 @@ It exists to **remove the burden of manual tagging** while keeping everything in
 
 ---
 
+## How to Install
+
+1. Download the .xpi file from the Releases page.
+
+2. In Zotero, go to Tools → Add-ons.
+
+3. Click the gear icon → Install Add-on from File…
+
+4. Choose the downloaded .xpi
+
+5. Restart Zotero.
+
+## Setting Up
+
+Before using Autotag, you must enter your API key.
+
+1. Open Zotero.
+
+2. Go to Tools → Autotag: settings…
+
+3. Paste your API key (OpenAI or compatible).
+
+4. Click Save.
+
+## Using Autotag
+
+1. Select one or more items in your Zotero library.
+
+2. Go to Tools → Autotag: tag selected items.
+
+3. Autotag will analyze the items and automatically add tags.
+
+That’s it — the tags will appear directly on your items. Sometimes it might take longer depending on how many papers you selected. Be patient. 
+
+Once the auto-tagging process is done, a window will pop up to show you tags selected for each paper. You can verify/add/delete/edit tags as you want before adding them to your item. 
+
+## Demo
+
+https://github.com/LilyKun064/Autotag_zotero_plugin/blob/main/assets/Autotag.mp4
+
+## What Autotag Uses
+
+Autotag sends only item metadata such as:
+
+- title
+
+- abstract
+
+- authors
+
+- publication
+
+- date
+
+- PDFs or full text are not uploaded.
+
+---
+
 ## What this plugin does
 
 Autotag adds an automatic tagging layer on top of your existing Zotero library.
@@ -51,34 +109,6 @@ To avoid confusion, Autotag does not:
 • Act as a recommendation engine or writing assistant  
 
 Think of it as a **supporting tool**, not an oracle.
-
----
-
-## Who this is for
-
-This plugin is designed for:
-
-• Graduate students and researchers  
-• People managing medium to large Zotero libraries  
-• Users who already rely on tags as part of their workflow  
-• Zotero users comfortable installing plugins  
-
-If your library is small or you rarely revisit old papers, this may not be useful yet.
-
----
-
-## Installation
-
-This plugin is under active development.
-
-Basic installation steps:
-
-1. Download the latest `.xpi` release from this repository  
-2. Open Zotero  
-3. Go to Tools → Add-ons  
-4. Click the gear icon → Install Add-on From File  
-5. Select the downloaded `.xpi` file  
-6. Restart Zotero  
 
 ---
 
