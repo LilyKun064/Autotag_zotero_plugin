@@ -35,6 +35,9 @@ const PREF_MODEL_DEEPSEEK = `${PREF_BRANCH}model.deepseek`;
 // Seed keywords
 const PREF_SEED_KEYWORDS = `${PREF_BRANCH}seedKeywords`;
 
+// Final prompt
+const PREF_FINAL_PROMPT = `${PREF_BRANCH}finalPrompt`;
+
 // =========================
 // Provider helpers
 // =========================
@@ -138,15 +141,61 @@ export function setSeedKeywords(value: string): void {
 }
 
 // =========================
+// Final prompt
+// =========================
+
+export function getDefaultPrompt(): string {
+  return `
+You are an assistant that reads scientific papers and assigns concise reusable tags.
+
+Rules:
+- Tags must be one to three words long
+- Use snake_case or simple ASCII
+- Avoid overly generic terms
+- Reuse identical tags across papers when referring to the same concept
+
+For each paper generate three to eight tags covering:
+- Topic
+- Method or technique
+- Material system or model organism
+
+Return only valid JSON in the following format:
+
+{
+  "items": [
+    {
+      "key": "<Zotero item key>",
+      "tags": ["tag1", "tag2"]
+    }
+  ]
+}
+`.trim();
+}
+
+export function getFinalPrompt(): string {
+  try {
+    const raw = Zotero.Prefs.get(PREF_FINAL_PROMPT, true);
+    return raw == null || !String(raw).trim()
+      ? getDefaultPrompt()
+      : String(raw);
+  } catch {
+    return getDefaultPrompt();
+  }
+}
+
+export function setFinalPrompt(value: string): void {
+  Zotero.Prefs.set(PREF_FINAL_PROMPT, value, true);
+}
+
+// =========================
 // Settings dialog
 // =========================
 
 export function openAutotagSettings(
   win: _ZoteroTypes.MainWindow,
 ): void {
-  // ======================
-  // Provider selection
-  // ======================
+
+  // ---------- Provider selection ----------
   const providerLabels = [
     "OpenAI",
     "Gemini",
@@ -181,9 +230,7 @@ export function openAutotagSettings(
   const provider = providerValues[providerSelection.value];
   setSelectedProvider(provider);
 
-  // ======================
-  // Model selection
-  // ======================
+  // ---------- Model selection ----------
   let modelOptions: string[] = [];
   let defaultModel = "";
 
@@ -193,13 +240,8 @@ export function openAutotagSettings(
         "gpt-4o-mini",
         "gpt-3.5-turbo",
         "gpt-4o",
-        "gpt-4.1-mini",
         "gpt-4.1",
-        "o4-mini",
-        "o3-mini",
         "o3",
-        "gpt-4-turbo",
-        "gpt-4",
       ];
       defaultModel = "gpt-4o-mini";
       break;
@@ -207,10 +249,7 @@ export function openAutotagSettings(
     case "gemini":
       modelOptions = [
         "gemini-1.5-flash",
-        "gemini-1.5-flash-8b",
         "gemini-1.5-pro",
-        "gemini-1.0-pro (legacy, may fail)",
-        "gemini-2.0-flash-exp (experimental)",
       ];
       defaultModel = "gemini-1.5-flash";
       break;
@@ -219,107 +258,64 @@ export function openAutotagSettings(
       modelOptions = [
         "deepseek-chat",
         "deepseek-reasoner",
-        "deepseek-coder",
-        "deepseek-coder-v2",
       ];
       defaultModel = "deepseek-chat";
       break;
 
     case "local":
-      modelOptions = [
-        "llama3.1:latest",
-        "llama3.1:8b",
-        "mistral:latest",
-        "qwen2.5:7b",
-      ];
       defaultModel = "";
       break;
   }
 
-  const storedModel = getModelForProvider(provider);
-  const currentModel =
-    storedModel && modelOptions.includes(storedModel)
-      ? storedModel
-      : defaultModel;
-
-  const modelIndex = Math.max(
-    modelOptions.indexOf(currentModel),
-    0,
-  );
-
-  const modelSelection: any = { value: modelIndex };
-
   let selectedModel = "";
 
-if (provider === "local") {
-  // Step 2a: optional dropdown for suggestions
-  const okSuggest = Services.prompt.select(
-    win,
-    "Autotag settings",
-    "Optional: select a local model suggestion.\n" +
-      "You can also type a model name manually next.",
-    modelOptions,
-    modelSelection,
-  );
+  if (provider === "local") {
+    const manualInput: any = {
+      value: getModelForProvider("local") || "",
+    };
 
-  if (!okSuggest) return;
+    const okManual = Services.prompt.prompt(
+      win,
+      "Autotag settings",
+      "Enter the local model name exactly as shown by `ollama list`:",
+      manualInput,
+      null,
+      {},
+    );
 
-  const suggested =
-    modelOptions[modelSelection.value] || "";
-
-  // Step 2b: manual text input (this is authoritative)
-  const manualInput: any = {
-    value:
-      getModelForProvider("local") ||
-      suggested ||
-      "",
-  };
-
-  const okManual = Services.prompt.prompt(
-    win,
-    "Autotag settings",
-    "Enter the exact local model name as shown by `ollama list`.\n\n" +
-      "Example: llama3.1:latest",
-    manualInput,
-    null,
-    {},
-  );
-
-  if (!okManual) return;
-
-  selectedModel = manualInput.value.trim();
+    if (!okManual) return;
+    selectedModel = manualInput.value.trim();
   } else {
-    // Existing dropdown behavior for cloud providers
+    const modelIndex = Math.max(
+      modelOptions.indexOf(
+        getModelForProvider(provider) || defaultModel,
+      ),
+      0,
+    );
+
+    const modelSelection: any = { value: modelIndex };
+
     const okModel = Services.prompt.select(
       win,
       "Autotag settings",
-      `Select a ${provider.toUpperCase()} model.\n\n` +
-        "Some models may require paid access or may not be available for your account.",
+      "Select the model you want to use:",
       modelOptions,
       modelSelection,
     );
 
     if (!okModel) return;
-
-    selectedModel = modelOptions[modelSelection.value]
-      .split(" ")[0];
+    selectedModel = modelOptions[modelSelection.value];
   }
 
-  if (!selectedModel) {
-    throw new Error(
-      "No model selected. Please enter a model name.",
-    );
+  if (selectedModel) {
+    setModelForProvider(provider, selectedModel);
   }
 
-setModelForProvider(provider, selectedModel);
-
-
-  // ======================
-  // API key (skip for local)
-  // ======================
+  // ---------- API key ----------
   if (provider !== "local") {
-    const currentKey = getApiKeyForProvider(provider);
-    const keyInput: any = { value: currentKey };
+    const keyInput: any = {
+      value: getApiKeyForProvider(provider),
+    };
 
     const okKey = Services.prompt.prompt(
       win,
@@ -335,17 +331,15 @@ setModelForProvider(provider, selectedModel);
     }
   }
 
-  // ======================
-  // Seed keywords
-  // ======================
-  const currentSeeds = getSeedKeywords();
-  const seedsInput: any = { value: currentSeeds };
+  // ---------- Seed keywords ----------
+  const seedsInput: any = {
+    value: getSeedKeywords(),
+  };
 
   const okSeeds = Services.prompt.prompt(
     win,
     "Autotag settings",
-    "Optional: enter seed keywords as a comma separated list.\n" +
-      "Example: adaptive_evolution, behavioral_genetics, epigenetics",
+    "Optional seed keywords as comma separated list:",
     seedsInput,
     null,
     {},
@@ -354,5 +348,23 @@ setModelForProvider(provider, selectedModel);
   if (okSeeds) {
     setSeedKeywords(seedsInput.value.trim());
   }
-}
 
+  // ---------- Final prompt (simple editor) ----------
+  const promptInput: any = {
+    value: getFinalPrompt(),
+  };
+
+  const okPrompt = Services.prompt.prompt(
+    win,
+    "Autotag settings",
+    "Edit the prompt Autotag sends to the LLM.\n\n" +
+      "This prompt will be reused for all future runs.",
+    promptInput,
+    null,
+    {},
+  );
+
+  if (okPrompt) {
+    setFinalPrompt(promptInput.value.trim());
+  }
+}
