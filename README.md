@@ -30,12 +30,10 @@ You can now choose between:
 ### Additional improvements
 
 - Provider specific model selection
-
 - Clear error messages when a model is unavailable or not installed
-
 - Manual model name input for local Ollama models
-
 - Better guidance for free versus paid model availability
+- Prompt customization available (V2.0.1)
 
 ---
 
