@@ -6,8 +6,9 @@ declare const Services: any;
 
 import { runAutotagForItems } from "./autotagCore";
 import {
+  getSelectedProvider,
+  getApiKeyForProvider,
   openAutotagSettings,
-  getApiKey,
 } from "./autotagPrefs";
 
 export type ItemMetadata = {
@@ -20,10 +21,6 @@ export type ItemMetadata = {
   creators: string[];
   tags: string[];
 };
-
-// If you want, you can delete this constant now,
-// since we'll do the icon purely in CSS.
-// const CAT_ICON_URL = "chrome://__addonRef__/content/icons/Jesse.png";
 
 /**
  * Convert a Zotero item into an ItemMetadata structure.
@@ -51,44 +48,52 @@ function getItemMetadata(item: any): ItemMetadata {
 }
 
 /**
- * Register Autotag menu items inside Tools menu.
+ * Register Autotag menu items inside the Tools menu.
  */
 export function registerAutotagToolsMenu(
   win: _ZoteroTypes.MainWindow,
 ): void {
   const doc = win.document;
-
   const toolsMenu = doc.getElementById("menu_ToolsPopup") as any;
   if (!toolsMenu) return;
 
-  // Avoid duplicates if hooks are re-called
+  // Prevent duplicate menu items
   if (doc.getElementById("autotag-settings-menuitem")) return;
   if (doc.getElementById("autotag-run-menuitem")) return;
 
   const xulDoc = doc as any;
 
-  //
-  // --- SETTINGS MENU ITEM (WITH CAT ICON VIA CSS) ---
-    const settingsItem = xulDoc.createXULElement("menuitem");
-    settingsItem.id = "autotag-settings-menuitem";
-    settingsItem.setAttribute("label", "Autotag: settings…");
-    settingsItem.setAttribute("class", "menuitem-iconic autotag-menuitem");
-    settingsItem.removeAttribute("image");
+  /* =========================
+     Settings menu item
+     ========================= */
 
-    // 🔥 The missing event listener:
-    settingsItem.addEventListener("command", () => {
+  const settingsItem = xulDoc.createXULElement("menuitem");
+  settingsItem.id = "autotag-settings-menuitem";
+  settingsItem.setAttribute("label", "Autotag: settings…");
+  settingsItem.setAttribute(
+    "class",
+    "menuitem-iconic autotag-menuitem",
+  );
+  settingsItem.removeAttribute("image");
+
+  settingsItem.addEventListener("command", () => {
     openAutotagSettings(win);
-    });
+  });
 
-    // --- RUN AUTOTAG MENU ITEM ---
-    const runItem = xulDoc.createXULElement("menuitem");
-    runItem.id = "autotag-run-menuitem";
-    runItem.setAttribute("label", "Autotag: tag selected items");
-    // 🔑 Change the class attribute to use your CSS class
-    runItem.setAttribute("class", "menuitem-iconic autotag-menuitem");
-    runItem.removeAttribute("image"); // 🔑 Remove the direct image attribute
+  /* =========================
+     Run Autotag menu item
+     ========================= */
 
-    runItem.addEventListener("command", async () => {
+  const runItem = xulDoc.createXULElement("menuitem");
+  runItem.id = "autotag-run-menuitem";
+  runItem.setAttribute("label", "Autotag: tag selected items");
+  runItem.setAttribute(
+    "class",
+    "menuitem-iconic autotag-menuitem",
+  );
+  runItem.removeAttribute("image");
+
+  runItem.addEventListener("command", async () => {
     const pane = Zotero.getActiveZoteroPane();
     if (!pane) {
       (win as any).alert("No active Zotero pane found.");
@@ -101,19 +106,27 @@ export function registerAutotagToolsMenu(
       return;
     }
 
-    const apiKey = getApiKey().trim();
-    if (!apiKey) {
-      const ask = Services.prompt.confirm(
-        win,
-        "Autotag",
-        "No API key is configured.\n\n" +
-          "Would you like to open Autotag settings?"
-      );
-      if (ask) openAutotagSettings(win);
+    const provider = getSelectedProvider();
+
+    // Only check API key for non-local providers
+    if (provider !== "local") {
+      const apiKey = getApiKeyForProvider(provider);
+
+      if (!apiKey) {
+        const ask = Services.prompt.confirm(
+          win,
+          "Autotag",
+          "No API key is configured for this provider.\n\n" +
+          "Would you like to open Autotag settings now?",
+        );
+        if (ask) openAutotagSettings(win);
+        return;
+      }
     }
 
+
     const payload: ItemMetadata[] = selectedItems.map((item: any) =>
-      getItemMetadata(item)
+      getItemMetadata(item),
     );
 
     try {
@@ -124,9 +137,10 @@ export function registerAutotagToolsMenu(
     }
   });
 
-  //
-  // --- ADD ITEMS TO TOOLS MENU ---
-  //
+  /* =========================
+     Attach menu items
+     ========================= */
+
   toolsMenu.appendChild(settingsItem);
   toolsMenu.appendChild(runItem);
 }

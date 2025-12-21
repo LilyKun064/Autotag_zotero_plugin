@@ -8,6 +8,36 @@ Your mental map of it quietly collapses.
 It is built for people who rely on Zotero every day and have reached the point where folders, memory, and manual tagging no longer scale.
 
 ---
+## What's NEW
+
+Autotag now supports **multiple large language model providers**, giving you full flexibility based on cost, availability, and privacy needs.
+
+You can now choose between:
+
+- OpenAI
+    Use OpenAI models for high quality tagging with cloud based inference.
+
+- Gemini
+    Use Google Gemini models when available through your API access level.
+
+- DeepSeek
+    Use DeepSeek models for strong reasoning focused tagging.
+
+- Local LLMs via Ollama
+    Run tagging completely offline using local models such as LLaMA, Mistral, or Qwen through Ollama.
+    No API key required. Your data never leaves your machine.
+
+### Additional improvements
+
+- Provider specific model selection
+
+- Clear error messages when a model is unavailable or not installed
+
+- Manual model name input for local Ollama models
+
+- Better guidance for free versus paid model availability
+
+---
 
 ## Why this exists
 

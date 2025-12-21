@@ -1,15 +1,15 @@
 // src/modules/autotagCore.ts
 
-// Global Zotero object from the Zotero app
-// src/modules/autotagCore.ts
-
-// Global Zotero object from the Zotero app
+// Global Zotero objects
 declare const Zotero: _ZoteroTypes.Zotero;
-declare const Services: any;  // <-- add this line if not present
+declare const Services: any;
 
 import type { ItemMetadata } from "./autotagMenu";
-import { getApiKey, getSeedKeywords } from "./autotagPrefs";
-
+import {
+  getSeedKeywords,
+  getModelForProvider,
+} from "./autotagPrefs";
+import { getLLMProvider } from "./llmproviders";
 
 type LLMItemTags = {
   key: string;
@@ -20,10 +20,10 @@ type LLMTagResult = {
   items: LLMItemTags[];
 };
 
-/**
- * Build an LLM-ready prompt from a list of ItemMetadata,
- * including user-provided seed keywords.
- */
+/* =========================
+   Prompt construction
+   ========================= */
+
 function buildPromptFromItems(
   items: ItemMetadata[],
   seedKeywords: string,
@@ -38,10 +38,8 @@ For each paper:
 - First, select any tags from seed_keywords that clearly apply to that paper.
 - Then, ADD 3–8 NEW tags (not necessarily in seed_keywords) so that the final tag set covers:
   - TOPIC: main scientific question or conceptual focus
-  - TECHNIQUE / METHOD: key methods or approaches (e.g., RNA_seq, GWAS, in_vivo_recording, RL_finetuning)
-  - MATERIAL / SYSTEM:
-      - For biology papers: species, taxa, tissue, system type (e.g., house_mouse, drosophila, zebrafish, human_neuroimaging)
-      - For CS/ML papers: model or system type and key objects (e.g., LLM, vision_transformer, multimodal_model, benchmark_dataset)
+  - TECHNIQUE / METHOD: key methods or approaches
+  - MATERIAL / SYSTEM
 - Reuse the same tag strings across papers whenever they refer to the same concept.
 - If a seed keyword never fits a paper, do NOT force it.
 `.trim()
@@ -49,10 +47,8 @@ For each paper:
 For each paper:
 - Generate 3–8 tags so that the final tag set covers:
   - TOPIC: main scientific question or conceptual focus
-  - TECHNIQUE / METHOD: key methods or approaches (e.g., RNA_seq, GWAS, in_vivo_recording, RL_finetuning)
-  - MATERIAL / SYSTEM:
-      - For biology papers: species, taxa, tissue, system type (e.g., house_mouse, drosophila, zebrafish, human_neuroimaging)
-      - For CS/ML papers: model or system type and key objects (e.g., LLM, vision_transformer, multimodal_model, benchmark_dataset)
+  - TECHNIQUE / METHOD
+  - MATERIAL / SYSTEM
 - Reuse the same tag strings across papers whenever they refer to the same concept.
 `.trim();
 
@@ -60,20 +56,19 @@ For each paper:
 You are an assistant that reads scientific papers and assigns concise, reusable tags.
 
 General rules:
-- Tags must be 1–3 words long, snake_case or simple ASCII (e.g., "adaptive_evolution", "epigenetic_plasticity", "urban_ecology").
+- Tags must be 1–3 words long, snake_case or simple ASCII.
 - Avoid overly generic terms like "study", "research", "methods", "experiment".
 - Avoid full sentences or long phrases.
 ${seedsLine}
 
-Return ONLY valid JSON in the following format, with no extra text:
+Return ONLY valid JSON in the following format:
 
 {
   "items": [
     {
       "key": "<Zotero item key>",
-      "tags": ["tag1", "tag2", "..."]
-    },
-    ...
+      "tags": ["tag1", "tag2"]
+    }
   ]
 }
 `.trim();
@@ -101,99 +96,78 @@ Return ONLY valid JSON in the following format, with no extra text:
   return `${header}\n\n=== PAPERS ===\n\n${itemsBlock}`;
 }
 
-/**
- * Call OpenAI's chat.completions endpoint with the prompt and return parsed JSON.
- * - Uses the API key stored in Autotag settings.
- * - Uses seed keywords (if any) to steer the vocabulary and structure.
- */
-async function callOpenAIForTags(
+/* =========================
+   LLM call
+   ========================= */
+
+async function callLLMForTags(
   prompt: string,
 ): Promise<LLMTagResult> {
-  const apiKey = getApiKey().trim();
-  if (!apiKey) {
-    throw new Error(
-      "No API key configured. Open Tools → Autotag: settings… and set your OpenAI key.",
-    );
-  }
+  const provider = getLLMProvider();
+  const model = getModelForProvider(provider.name) || "(default)";
 
-  const body = {
-    model: "gpt-4o-mini", // change if you prefer another model
-    response_format: { type: "json_object" },
-    temperature: 0.2,
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are a careful assistant that ALWAYS returns ONLY valid JSON and never natural language outside JSON.",
-      },
-      {
-        role: "user",
-        content: prompt,
-      },
-    ],
-  };
-
-  const url = "https://api.openai.com/v1/chat/completions";
-
-  // Let Zotero.HTTP give us plain text so we can JSON.parse manually
-  const response = await Zotero.HTTP.request("POST", url, {
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: "Bearer " + apiKey,
-    },
-    body: JSON.stringify(body),
-    // IMPORTANT: no responseType here, default is text
-  });
-
-  const raw = (response as any).responseText;
-  if (!raw) {
-    throw new Error(
-      "OpenAI response did not contain responseText. Status: " +
-        (response as any).status,
-    );
-  }
-
-  let data: any;
+  let content: string;
   try {
-    data = JSON.parse(raw);
-  } catch (e) {
-    throw new Error("Failed to parse OpenAI response JSON: " + e);
-  }
+    content = await provider.generateTags(prompt);
+  } catch (e: any) {
+    const msg = String(e);
 
-  const content =
-    data?.choices?.[0]?.message?.content ??
-    data?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
+    // Case 1: model exists but not supported by current API version
+    if (
+      msg.includes("not supported") &&
+      msg.includes("API version")
+    ) {
+      const match = msg.match(/API version ([a-zA-Z0-9.-]+)/);
+      const apiVersion = match ? match[1] : "your current API version";
 
-  if (!content || typeof content !== "string") {
+      throw new Error(
+        `This model is not supported by the current API version (${apiVersion}).\n\n` +
+          "Please select a different model in Autotag settings.",
+      );
+    }
+
+    // Case 2: model not found or no longer available
+    if (
+      msg.includes("404") &&
+      (msg.includes("not found") ||
+        msg.includes("is not found"))
+    ) {
+      throw new Error(
+        "This model is not available anymore according to the provider.\n\n" +
+          "Please try another model in Autotag settings.",
+      );
+    }
+
+    // Other errors
     throw new Error(
-      "OpenAI response did not contain a string message.content.",
+      `LLM error using ${provider.name} (${model}): ${msg}`,
     );
   }
 
   let parsed: LLMTagResult;
   try {
     parsed = JSON.parse(content);
-  } catch (e) {
+  } catch {
     throw new Error(
-      "OpenAI did not return valid JSON. Raw content was:\n" +
+      `Invalid JSON returned by ${provider.name} (${model}):\n` +
         content.substring(0, 1000),
     );
   }
 
   if (!parsed.items || !Array.isArray(parsed.items)) {
     throw new Error(
-      "OpenAI JSON is missing 'items' array. Parsed value: " +
-        JSON.stringify(parsed).substring(0, 500),
+      `LLM JSON missing items array (${provider.name}, ${model})`,
     );
   }
 
   return parsed;
 }
 
-/**
- * Preview and allow the user to edit tags per item using a simple dialog.
- * Returns a new result object with the edited tags.
- */
+
+/* =========================
+   Preview dialog
+   ========================= */
+
 function previewAndEditTags(
   result: LLMTagResult,
   items: ItemMetadata[],
@@ -216,29 +190,18 @@ function previewAndEditTags(
     const ok = Services.prompt.prompt(
       win,
       "Autotag preview",
-      `Title:\n${title}\n\n` +
-        `Edit tags as a comma-separated list.\n` +
-        `You can change casing (e.g., "Adaptive Evolution") or remove/add tags.\n\n` +
-        `Suggested tags:`,
+      `Title:\n${title}\n\nEdit tags as a comma-separated list:`,
       input,
       null,
       {},
     );
 
     if (!ok) {
-      // User pressed Cancel → keep original tags
       edited.push(entry);
       continue;
     }
 
-    const text = String(input.value || "").trim();
-    if (!text) {
-      // Empty text → treat as "no tags" for this item
-      edited.push({ key: entry.key, tags: [] });
-      continue;
-    }
-
-    const newTags = text
+    const newTags = String(input.value || "")
       .split(",")
       .map((t) => t.trim())
       .filter((t) => t.length > 0);
@@ -252,20 +215,16 @@ function previewAndEditTags(
   return { items: edited };
 }
 
+/* =========================
+   Apply tags
+   ========================= */
 
-/**
- * Apply tags from an LLMTagResult back to Zotero items.
- */
 function applyTagsToZotero(result: LLMTagResult): number {
   const pane = Zotero.getActiveZoteroPane();
-  if (!pane) {
-    throw new Error("No active Zotero pane.");
-  }
+  if (!pane) throw new Error("No active Zotero pane.");
 
   const selectedItems = pane.getSelectedItems();
-  if (!selectedItems || !selectedItems.length) {
-    throw new Error("No items selected.");
-  }
+  if (!selectedItems.length) throw new Error("No items selected.");
 
   const tagMap = new Map<string, string[]>();
   for (const entry of result.items) {
@@ -276,9 +235,9 @@ function applyTagsToZotero(result: LLMTagResult): number {
 
   for (const item of selectedItems as any[]) {
     const tags = tagMap.get(item.key);
-    if (!tags || !tags.length) continue;
+    if (!tags?.length) continue;
 
-    const existingTags = new Set(
+    const existing = new Set(
       (item.getTags?.() || []).map((t: any) =>
         String(t.tag).toLowerCase(),
       ),
@@ -286,11 +245,9 @@ function applyTagsToZotero(result: LLMTagResult): number {
 
     for (const t of tags) {
       const tagName = String(t).trim();
-      if (!tagName) continue;
-
-      if (!existingTags.has(tagName.toLowerCase())) {
+      if (!existing.has(tagName.toLowerCase())) {
         item.addTag(tagName);
-        existingTags.add(tagName.toLowerCase());
+        existing.add(tagName.toLowerCase());
       }
     }
 
@@ -301,12 +258,10 @@ function applyTagsToZotero(result: LLMTagResult): number {
   return taggedCount;
 }
 
-/**
- * Core entry point called by the menu.
- * - Builds the prompt (including seed keywords)
- * - Calls OpenAI
- * - Applies tags to the selected items
- */
+/* =========================
+   Public entry point
+   ========================= */
+
 export async function runAutotagForItems(
   items: ItemMetadata[],
   win: _ZoteroTypes.MainWindow,
@@ -319,30 +274,25 @@ export async function runAutotagForItems(
   const seeds = getSeedKeywords().trim();
   const prompt = buildPromptFromItems(items, seeds);
 
-  // Log prompt for debugging
+  const provider = getLLMProvider();
+  const model = getModelForProvider(provider.name) || "(default)";
+
   (Zotero as any).debug(
-    "Autotag prompt being sent to OpenAI:\n" + prompt,
+    `Autotag prompt sent to ${provider.name} (${model}):\n${prompt}`,
   );
 
-  let llmResult = await callOpenAIForTags(prompt);
+  const llmResult = await callLLMForTags(prompt);
 
   (Zotero as any).debug(
-    "Autotag OpenAI result (before preview): " +
+    `Autotag result from ${provider.name} (${model}) before preview:\n` +
       JSON.stringify(llmResult, null, 2),
   );
 
-  // Let the user review and edit tags per item
-  llmResult = previewAndEditTags(llmResult, items, win);
+  const editedResult = previewAndEditTags(llmResult, items, win);
 
-  (Zotero as any).debug(
-    "Autotag result (after preview edits): " +
-      JSON.stringify(llmResult, null, 2),
-  );
-
-  const taggedCount = applyTagsToZotero(llmResult);
-
+  const taggedCount = applyTagsToZotero(editedResult);
 
   (win as any).alert(
-    `Autotag applied tags from OpenAI to ${taggedCount} item(s).`,
+    `Autotag applied tags using ${provider.name} (${model}) to ${taggedCount} item(s).`,
   );
 }

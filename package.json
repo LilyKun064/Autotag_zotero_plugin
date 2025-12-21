@@ -1,8 +1,9 @@
 {
   "name": "zotero-autotag",
   "type": "module",
-  "version": "0.0.1",
+  "version": "1.0.1",
   "description": "Autotag – Automatically assign tags to Zotero items using LLMs.",
+
   "config": {
     "addonName": "Autotag",
     "addonID": "autotag@LilyKun064",
@@ -27,6 +28,7 @@
   "scripts": {
     "start": "zotero-plugin serve",
     "build": "zotero-plugin build && tsc --noEmit",
+    "postbuild": "node scripts/rename-xpi.cjs",
     "lint:check": "prettier --check . && eslint .",
     "lint:fix": "prettier --write . && eslint . --fix",
     "release": "zotero-plugin release",
