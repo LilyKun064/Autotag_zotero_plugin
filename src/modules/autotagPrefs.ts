@@ -5,9 +5,10 @@ declare const Zotero: _ZoteroTypes.Zotero;
 // ChromeUtils is provided by the Zotero Firefox platform
 declare const ChromeUtils: any;
 
-const { Services } = ChromeUtils.import(
-  "resource://gre/modules/Services.jsm",
+const { Services } = ChromeUtils.importESModule(
+  "resource://gre/modules/Services.sys.mjs"
 );
+
 
 // =========================
 // Preference namespace

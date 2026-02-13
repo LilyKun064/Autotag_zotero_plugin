@@ -23,3 +23,8 @@ API.txt
 
 # Old README
 README_old.md
+
+*.xpi
+xpi_backup/
+build/
+dist/
