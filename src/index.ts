@@ -1,25 +1,16 @@
-import { BasicTool } from "zotero-plugin-toolkit";
+// src/index.ts
+//
+// Zotero 8–native entry point (no zotero-plugin-toolkit).
+// bootstrap.js loads the bundled script into a sandbox `ctx` where `_globalThis` exists.
+
 import Addon from "./addon";
 import { config } from "../package.json";
 
-const basicTool = new BasicTool();
+// Zotero global from the app
+declare const Zotero: any;
 
-// @ts-expect-error - Plugin instance is not typed
-if (!basicTool.getGlobal("Zotero")[config.addonInstance]) {
-  _globalThis.addon = new Addon();
-  defineGlobal("ztoolkit", () => {
-    return _globalThis.addon.data.ztoolkit;
-  });
-  // @ts-expect-error - Plugin instance is not typed
-  Zotero[config.addonInstance] = addon;
-}
-
-function defineGlobal(name: Parameters<BasicTool["getGlobal"]>[0]): void;
-function defineGlobal(name: string, getter: () => any): void;
-function defineGlobal(name: string, getter?: () => any) {
-  Object.defineProperty(_globalThis, name, {
-    get() {
-      return getter ? getter() : basicTool.getGlobal(name);
-    },
-  });
+// Create addon instance once
+if (!Zotero[config.addonInstance]) {
+  (_globalThis as any).addon = new Addon();
+  Zotero[config.addonInstance] = (_globalThis as any).addon;
 }

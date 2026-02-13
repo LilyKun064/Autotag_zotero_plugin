@@ -1,53 +1,88 @@
-/**
- * Most of this code is from Zotero team's official Make It Red example[1]
- * or the Zotero 7 documentation[2].
- * [1] https://github.com/zotero/make-it-red
- * [2] https://www.zotero.org/support/dev/zotero_7_for_developers
- */
+/* bootstrap.js — fixed to load autotag.js with required globals (Zotero 8) */
 
 var chromeHandle;
 
-function install(data, reason) {}
+var { Zotero } = ChromeUtils.importESModule("chrome://zotero/content/zotero.mjs");
 
-async function startup({ id, version, resourceURI, rootURI }, reason) {
-  var aomStartup = Components.classes[
-    "@mozilla.org/addons/addon-manager-startup;1"
-  ].getService(Components.interfaces.amIAddonManagerStartup);
-  var manifestURI = Services.io.newURI(rootURI + "manifest.json");
+var Cc = Components.classes;
+var Ci = Components.interfaces;
+
+function install(data, reason) {}
+function uninstall(data, reason) {}
+
+function log(msg) {
+  try {
+    Zotero.debug("[Autotag] " + msg);
+  } catch (e) {
+    // Last resort
+    try { dump("[Autotag] " + msg + "\n"); } catch (_) {
+      //
+    }
+  }
+}
+
+async function startup({ rootURI }, reason) {
+  // AddonManagerStartup
+  const aomStartup = Cc["@mozilla.org/addons/addon-manager-startup;1"].getService(
+    Ci.amIAddonManagerStartup
+  );
+
+  // Create nsIURI without Services.io
+  const ios = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
+  const manifestURI = ios.newURI(rootURI + "manifest.json");
+
   chromeHandle = aomStartup.registerChrome(manifestURI, [
-    ["content", "__addonRef__", rootURI + "content/"],
+    ["content", "autotag", rootURI + "content/"],
   ]);
 
-  /**
-   * Global variables for plugin code.
-   * The `_globalThis` is the global root variable of the plugin sandbox environment
-   * and all child variables assigned to it is globally accessible.
-   * See `src/index.ts` for details.
-   */
-  const ctx = { rootURI };
-  ctx._globalThis = ctx;
-
-  Services.scriptloader.loadSubScript(
-    `${rootURI}/content/scripts/__addonRef__.js`,
-    ctx,
+  // Load subscript without Services.scriptloader
+  const scriptLoader = Cc["@mozilla.org/moz/jssubscript-loader;1"].getService(
+    Ci.mozIJSSubScriptLoader
   );
-  await Zotero.__addonInstance__.hooks.onStartup();
-}
 
-async function onMainWindowLoad({ window }, reason) {
-  await Zotero.__addonInstance__?.hooks.onMainWindowLoad(window);
-}
+  // Context for bundled autotag.js
+  const ctx = {
+    rootURI,
 
-async function onMainWindowUnload({ window }, reason) {
-  await Zotero.__addonInstance__?.hooks.onMainWindowUnload(window);
-}
+    // These MUST exist as free globals for many bundles
+    Zotero,
+    ChromeUtils,
+    Components,
+    Cc,
+    Ci,
+  };
 
-async function shutdown({ id, version, resourceURI, rootURI }, reason) {
-  if (reason === APP_SHUTDOWN) {
-    return;
+  // Some bundles check these
+  ctx._globalThis = ctx;
+  ctx.globalThis = ctx;
+
+  // Provide Services so the preview prompt uses Services.prompt.prompt
+  // instead of falling back to window.prompt (often unavailable).
+  try {
+    const mod = ChromeUtils.importESModule("resource://gre/modules/Services.sys.mjs");
+    ctx.Services = mod.Services || mod.default || mod;
+  } catch (e) {
+    log("Failed to import Services.sys.mjs: " + String(e));
   }
 
-  await Zotero.__addonInstance__?.hooks.onShutdown();
+  // If your bundle logs to console, provide a minimal shim so it won't crash
+  // (optional, but safe)
+  ctx.console = {
+    log: (m) => log(String(m)),
+    info: (m) => log(String(m)),
+    warn: (m) => log("WARN: " + String(m)),
+    error: (m) => log("ERROR: " + String(m)),
+  };
+
+  scriptLoader.loadSubScript(`${rootURI}content/scripts/autotag.js`, ctx);
+
+  await Zotero.Autotag?.hooks?.onStartup?.();
+}
+
+async function shutdown(data, reason) {
+  if (reason === APP_SHUTDOWN) return;
+
+  await Zotero.Autotag?.hooks?.onShutdown?.();
 
   if (chromeHandle) {
     chromeHandle.destruct();
@@ -55,4 +90,10 @@ async function shutdown({ id, version, resourceURI, rootURI }, reason) {
   }
 }
 
-async function uninstall(data, reason) {}
+async function onMainWindowLoad({ window }, reason) {
+  await Zotero.Autotag?.hooks?.onMainWindowLoad?.(window);
+}
+
+async function onMainWindowUnload({ window }, reason) {
+  await Zotero.Autotag?.hooks?.onMainWindowUnload?.(window);
+}

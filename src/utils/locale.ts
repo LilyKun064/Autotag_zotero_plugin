@@ -7,15 +7,25 @@ export { initLocale, getString, getLocaleID };
  * Initialize locale data
  */
 function initLocale() {
-  const l10n = new (
-    typeof Localization === "undefined"
-      ? ztoolkit.getGlobal("Localization")
-      : Localization
-  )([`${config.addonRef}-addon.ftl`], true);
-  addon.data.locale = {
-    current: l10n,
-  };
+  // Zotero 8: Localization is available in the chrome window/global
+  // (no zotero-plugin-toolkit needed)
+  const L10nCtor =
+    typeof (globalThis as any).Localization !== "undefined"
+      ? (globalThis as any).Localization
+      : (globalThis as any).Services?.scriptloader
+        ? (globalThis as any).Localization
+        : null;
+
+  if (!L10nCtor) {
+    // Fallback: keep plugin running even if localization isn't available
+    addon.data.locale = { current: null as any };
+    return;
+  }
+
+  const l10n = new L10nCtor([`${config.addonRef}-addon.ftl`], true);
+  addon.data.locale = { current: l10n };
 }
+
 
 /**
  * Get locale string, see https://firefox-source-docs.mozilla.org/l10n/fluent/tutorial.html#fluent-translation-list-ftl
