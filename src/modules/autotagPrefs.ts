@@ -300,8 +300,8 @@ export function openAutotagSettings(win: _ZoteroTypes.MainWindow): void {
       break;
 
     case "gemini":
-      modelOptions = ["gemini-1.5-flash", "gemini-1.5-pro"];
-      defaultModel = "gemini-1.5-flash";
+      modelOptions = ["gemini-2.5-flash-lite", "gemini-2.5-flash"];
+      defaultModel = "gemini-2.5-flash-lite";
       break;
 
     case "deepseek":

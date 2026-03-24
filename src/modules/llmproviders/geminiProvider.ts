@@ -38,7 +38,7 @@ export const GeminiProvider: LLMProvider = {
 
     const response = await Zotero.HTTP.request(
       "POST",
-      `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
       {
         headers: {
           "Content-Type": "application/json",
