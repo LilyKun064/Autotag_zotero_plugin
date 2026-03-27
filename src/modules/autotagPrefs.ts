@@ -260,8 +260,11 @@ For each paper generate three to eight tags covering:
 - Method or technique
 - Material system or model organism
 
-Return only valid JSON in the following format:
-
+Return only valid JSON.
+- Do not use markdown.
+- Do not use fences.
+- Do not include explanations.
+- Return only raw JSON in the following format:
 {
   "items": [
     {
