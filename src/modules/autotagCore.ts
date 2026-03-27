@@ -7,10 +7,11 @@ declare const ChromeUtils: any;
 
 import type { ItemMetadata } from "./autotagMenu";
 import {
-  Services as PrefsServices, // may be undefined in some contexts
+  Services as PrefsServices,
   getSeedKeywords,
   getModelForProvider,
   getFinalPrompt,
+  getPromptContentOptions,
 } from "./autotagPrefs";
 import { getLLMProvider } from "./llmproviders";
 
@@ -27,10 +28,6 @@ type LLMTagResult = {
    Utilities
    ========================= */
 
-/**
- * Resolve a usable Zotero main window even if caller passed a bad/undefined win.
- * This prevents preview crashing when win is not the real chrome window.
- */
 function resolveMainWindow(
   win?: _ZoteroTypes.MainWindow,
 ): _ZoteroTypes.MainWindow {
@@ -47,18 +44,12 @@ function resolveMainWindow(
   return w as _ZoteroTypes.MainWindow;
 }
 
-/**
- * Prefer Services from Zotero if present, else fall back to prefs export, else try import.
- * This fixes the common “preview tags” crash where prompt falls back to win.prompt,
- * which may not exist in Zotero windows.
- */
 function resolveServices(): any | undefined {
   const zServices = (Zotero as any)?.Services;
   if (zServices) return zServices;
 
   if (PrefsServices) return PrefsServices as any;
 
-  // last resort: try importing Services.sys.mjs if ChromeUtils exists
   try {
     if (typeof ChromeUtils !== "undefined" && ChromeUtils?.importESModule) {
       const mod = ChromeUtils.importESModule(
@@ -72,6 +63,52 @@ function resolveServices(): any | undefined {
   return undefined;
 }
 
+function nonEmptyString(value: unknown): string {
+  return String(value ?? "").trim();
+}
+
+function maybeAddBlock(lines: string[], label: string, value: unknown): void {
+  const text = nonEmptyString(value);
+  if (text) {
+    lines.push(`${label}: ${text}`);
+  }
+}
+
+function maybeAddMultilineBlock(
+  lines: string[],
+  label: string,
+  value: unknown,
+  fallback?: string,
+): void {
+  const text = nonEmptyString(value);
+  if (text) {
+    lines.push(`${label}:`);
+    lines.push(text);
+  } else if (fallback) {
+    lines.push(`${label}:`);
+    lines.push(fallback);
+  }
+}
+
+/**
+ * Make model output more tolerant before JSON.parse():
+ * - strips ```json ... ``` or ``` ... ``` fences
+ * - strips a leading standalone "json" line
+ * - trims surrounding whitespace
+ */
+function sanitizeLLMJsonResponse(content: string): string {
+  let text = String(content || "").trim();
+
+  const fencedMatch = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fencedMatch && fencedMatch[1]) {
+    text = fencedMatch[1].trim();
+  }
+
+  text = text.replace(/^json\s*\n/i, "").trim();
+
+  return text;
+}
+
 /* =========================
    Prompt construction
    ========================= */
@@ -79,6 +116,12 @@ function resolveServices(): any | undefined {
 function buildPromptFromItems(items: ItemMetadata[]): string {
   const basePrompt = getFinalPrompt();
   const seedKeywords = (getSeedKeywords() || "").trim();
+  const contentOptions = getPromptContentOptions();
+
+  const rawJsonInstruction = `
+Return only raw JSON.
+Do not wrap the JSON in Markdown, code fences, or explanatory text.
+`.trim();
 
   const seedsBlock = seedKeywords
     ? `
@@ -93,28 +136,62 @@ seed_keywords = [${seedKeywords}]
 
   const itemsBlock = items
     .map((item, idx) => {
+      const lines: string[] = [];
       const creators = Array.isArray(item.creators) ? item.creators : [];
       const creatorsStr = creators.join("; ");
       const tags = Array.isArray(item.tags) ? item.tags : [];
       const tagsStr = tags.length ? tags.join(", ") : "(none)";
 
-      return [
-        `Paper ${idx + 1}:`,
-        `key: ${String(item.key ?? "")}`,
-        `itemType: ${String(item.itemType ?? "")}`,
-        `title: ${String(item.title ?? "")}`,
-        `creators: ${creatorsStr}`,
-        `journal: ${String((item as any).publicationTitle ?? "")}`,
-        `date: ${String((item as any).date ?? "")}`,
-        `existing_tags: ${tagsStr}`,
-        `abstract:`,
-        (item as any).abstract || "[no abstract available]",
-      ].join("\n");
+      lines.push(`Paper ${idx + 1}:`);
+      lines.push(`key: ${String(item.key ?? "")}`);
+      maybeAddBlock(lines, "itemType", item.itemType);
+
+      if (contentOptions.includeTitle) {
+        maybeAddBlock(lines, "title", item.title);
+      }
+
+      if (contentOptions.includeCreators) {
+        maybeAddBlock(lines, "creators", creatorsStr);
+      }
+
+      if (contentOptions.includePublicationTitle) {
+        maybeAddBlock(lines, "journal", item.publicationTitle);
+      }
+
+      if (contentOptions.includeDate) {
+        maybeAddBlock(lines, "date", item.date);
+      }
+
+      if (contentOptions.includeExistingTags) {
+        lines.push(`existing_tags: ${tagsStr}`);
+      }
+
+      if (contentOptions.includeAbstract) {
+        maybeAddMultilineBlock(
+          lines,
+          "abstract",
+          item.abstract,
+          "[no abstract available]",
+        );
+      }
+
+      if (contentOptions.includePdfText) {
+        maybeAddMultilineBlock(
+          lines,
+          "pdf_text",
+          item.pdfText,
+          "[no extracted PDF text available]",
+        );
+      }
+
+      return lines.join("\n");
     })
     .join("\n\n---\n\n");
 
   return `
 ${basePrompt}
+
+${rawJsonInstruction}
 ${seedsBlock}
 
 === PAPERS ===
@@ -127,15 +204,26 @@ ${itemsBlock}
    LLM call
    ========================= */
 
-async function callLLMForTags(prompt: string): Promise<LLMTagResult> {
+async function callLLMForTags(
+  prompt: string,
+  sourceItems: ItemMetadata[],
+): Promise<LLMTagResult> {
   const provider = getLLMProvider();
   const model = getModelForProvider(provider.name) || "(default)";
 
-  let content: string;
+  let content = "";
+
   try {
     content = await provider.generateTags(prompt);
+    (Zotero as any).debug?.(
+      `Autotag raw response from ${provider.name} (${model}):\n${content}`,
+    );
   } catch (e: any) {
-    const msg = String(e);
+    const msg = e instanceof Error ? e.message || String(e) : String(e);
+
+    (Zotero as any).debug?.(
+      `Autotag provider error from ${provider.name} (${model}): ${msg}`,
+    );
 
     if (msg.includes("API version") && msg.includes("not supported")) {
       const match = msg.match(/API version ([a-zA-Z0-9.-]+)/);
@@ -158,35 +246,51 @@ async function callLLMForTags(prompt: string): Promise<LLMTagResult> {
 
   let parsed: any;
   try {
-    parsed = JSON.parse(content);
+    const sanitized = sanitizeLLMJsonResponse(content);
+    (Zotero as any).debug?.(
+      `Autotag sanitized response from ${provider.name} (${model}):\n${sanitized}`,
+    );
+    parsed = JSON.parse(sanitized);
   } catch {
     throw new Error(
-      `Invalid JSON returned by ${provider.name} (${model}):\n` +
-        content.substring(0, 1000),
+      `Invalid JSON returned by ${provider.name} (${model}).\n\n` +
+        `First 1000 chars of raw response:\n${content.substring(0, 1000)}`,
     );
   }
 
   if (!parsed?.items || !Array.isArray(parsed.items)) {
-    throw new Error(`LLM JSON missing items array (${provider.name}, ${model})`);
+    throw new Error(
+      `LLM JSON missing items array (${provider.name}, ${model}).\n\n` +
+        `Returned JSON:\n${JSON.stringify(parsed, null, 2).substring(0, 1000)}`,
+    );
   }
 
-  // Normalize/validate to prevent preview crashes
-  const normalized: LLMItemTags[] = parsed.items
-    .map((x: any) => {
-      const key = String(x?.key || "").trim();
+  const validKeys = new Set(
+    (sourceItems || []).map((x) => String(x.key || "").trim()),
+  );
+
+  const normalized: LLMItemTags[] = (parsed.items || [])
+    .map((x: any, i: number) => {
+      let key = String(x?.key || "").trim();
+
+      if (!key || !validKeys.has(key)) {
+        key = String(sourceItems?.[i]?.key || "").trim();
+      }
+
       const tagsRaw = x?.tags;
       const tags = Array.isArray(tagsRaw)
         ? tagsRaw.map((t: any) => String(t).trim()).filter(Boolean)
         : [];
+
       return { key, tags };
     })
-    .filter((x: LLMItemTags) => !!x.key); // drop empty keys
+    .filter((x: LLMItemTags) => !!x.key);
 
   return { items: normalized };
 }
 
 /* =========================
-   Preview dialog (robust)
+   Preview dialog
    ========================= */
 
 function promptEditTags(
@@ -198,21 +302,18 @@ function promptEditTags(
   const win = resolveMainWindow(winIn);
   const S = resolveServices();
 
-  // Preferred: Services.prompt.prompt
   if (S?.prompt?.prompt) {
     const input: any = { value: initial };
     const ok = S.prompt.prompt(win, title, message, input, null, {});
     return ok ? String(input.value ?? "") : null;
   }
 
-  // Fallback: window.prompt (may not exist in Zotero windows)
   const w: any = win as any;
   if (typeof w.prompt === "function") {
     const raw = w.prompt(`${title}\n\n${message}`, initial);
     return raw == null ? null : String(raw);
   }
 
-  // Last-resort: do not crash preview; treat as "Cancel"
   (Zotero as any).debug?.(
     "Autotag: No available prompt implementation (Services.prompt.prompt missing and win.prompt not a function).",
   );
@@ -245,7 +346,6 @@ function previewAndEditTags(
       initial,
     );
 
-    // Cancel (or no prompt available) → keep original tags
     if (raw == null) {
       edited.push({ key: entry.key, tags: current });
       continue;
@@ -266,11 +366,6 @@ function previewAndEditTags(
    Apply tags
    ========================= */
 
-/**
- * NOTE: This function currently tags the *currently selected items*.
- * That’s ok if Autotag is always launched from a selection, but selection can change
- * while preview is open. If you want strict correctness, tag by keys instead of selection.
- */
 async function applyTagsToZotero(result: LLMTagResult): Promise<number> {
   const pane = (Zotero as any).getActiveZoteroPane?.();
   if (!pane) throw new Error("No active Zotero pane.");
@@ -288,11 +383,13 @@ async function applyTagsToZotero(result: LLMTagResult): Promise<number> {
 
   for (const item of selectedItems as any[]) {
     const tags = tagMap.get(item.key);
-    if (!tags?.length) continue;
+    if (!tags?.length) {
+      (Zotero as any).debug?.(`Autotag: no tags for selected item ${item.key}`);
+      continue;
+    }
 
-    const existing = new Set(
-      (item.getTags?.() || []).map((t: any) => String(t.tag).toLowerCase()),
-    );
+    const existingTags = (item.getTags?.() || []).map((t: any) => String(t.tag));
+    const existing = new Set(existingTags.map((t: string) => t.toLowerCase()));
 
     let changed = false;
 
@@ -306,8 +403,11 @@ async function applyTagsToZotero(result: LLMTagResult): Promise<number> {
       }
     }
 
+    (Zotero as any).debug?.(
+      `Autotag item ${item.key}: proposed=${JSON.stringify(tags)} existing=${JSON.stringify(existingTags)} changed=${changed}`,
+    );
+
     if (changed) {
-      // saveTx is async in Zotero; await to ensure tags persist reliably
       if (typeof item.saveTx === "function") {
         await item.saveTx();
       } else if (typeof item.save === "function") {
@@ -343,9 +443,26 @@ export async function runAutotagForItems(
     `Autotag prompt sent to ${provider.name} (${model}):\n${prompt}`,
   );
 
-  const llmResult = await callLLMForTags(prompt);
+  const llmResult = await callLLMForTags(prompt, items);
+
+  (Zotero as any).debug?.(
+    `Autotag parsed result:\n${JSON.stringify(llmResult, null, 2)}`,
+  );
+
+  const inputKeys = items.map((x) => x.key);
+  const outputKeys = (llmResult.items || []).map((x) => x.key);
+
+  (Zotero as any).debug?.(
+    `Autotag input keys: ${JSON.stringify(inputKeys)}\n` +
+      `Autotag output keys: ${JSON.stringify(outputKeys)}`,
+  );
 
   const edited = previewAndEditTags(llmResult, items, mainWin);
+
+  (Zotero as any).debug?.(
+    `Autotag edited result:\n${JSON.stringify(edited, null, 2)}`,
+  );
+
   const count = await applyTagsToZotero(edited);
 
   (mainWin as any).alert?.(

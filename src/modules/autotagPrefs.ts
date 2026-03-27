@@ -58,6 +58,87 @@ const PREF_SEED_KEYWORDS = `${PREF_BRANCH}seedKeywords`;
 // Final prompt
 const PREF_FINAL_PROMPT = `${PREF_BRANCH}finalPrompt`;
 
+// Prompt content selection
+const PREF_INCLUDE_TITLE = `${PREF_BRANCH}content.includeTitle`;
+const PREF_INCLUDE_CREATORS = `${PREF_BRANCH}content.includeCreators`;
+const PREF_INCLUDE_PUBLICATION_TITLE = `${PREF_BRANCH}content.includePublicationTitle`;
+const PREF_INCLUDE_DATE = `${PREF_BRANCH}content.includeDate`;
+const PREF_INCLUDE_EXISTING_TAGS = `${PREF_BRANCH}content.includeExistingTags`;
+const PREF_INCLUDE_ABSTRACT = `${PREF_BRANCH}content.includeAbstract`;
+const PREF_INCLUDE_PDF_TEXT = `${PREF_BRANCH}content.includePdfText`;
+const PREF_PDF_TEXT_MODE = `${PREF_BRANCH}content.pdfTextMode`;
+const PREF_PDF_TEXT_CHAR_LIMIT = `${PREF_BRANCH}content.pdfTextCharLimit`;
+
+// =========================
+// Types
+// =========================
+
+export type PdfTextMode = "first_n_chars" | "full_text";
+
+export type PromptContentOptions = {
+  includeTitle: boolean;
+  includeCreators: boolean;
+  includePublicationTitle: boolean;
+  includeDate: boolean;
+  includeExistingTags: boolean;
+  includeAbstract: boolean;
+  includePdfText: boolean;
+  pdfTextMode: PdfTextMode;
+  pdfTextCharLimit: number;
+};
+
+// =========================
+// Generic pref helpers
+// =========================
+
+function getStringPref(prefKey: string, useGlobal = false): string {
+  try {
+    const raw = Zotero.Prefs.get(prefKey, useGlobal);
+    return raw == null ? "" : String(raw);
+  } catch {
+    return "";
+  }
+}
+
+function setStringPref(prefKey: string, value: string, useGlobal = false): void {
+  Zotero.Prefs.set(prefKey, value, useGlobal);
+}
+
+function getBoolPref(prefKey: string, fallback: boolean): boolean {
+  try {
+    const raw = Zotero.Prefs.get(prefKey);
+    if (raw === true || raw === false) return raw;
+    if (raw == null || raw === "") return fallback;
+
+    const normalized = String(raw).trim().toLowerCase();
+    if (["true", "1", "yes", "y"].includes(normalized)) return true;
+    if (["false", "0", "no", "n"].includes(normalized)) return false;
+
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function setBoolPref(prefKey: string, value: boolean): void {
+  Zotero.Prefs.set(prefKey, !!value);
+}
+
+function getIntPref(prefKey: string, fallback: number): number {
+  try {
+    const raw = Zotero.Prefs.get(prefKey);
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function setIntPref(prefKey: string, value: number): void {
+  const n = Number(value);
+  Zotero.Prefs.set(prefKey, Number.isFinite(n) && n > 0 ? Math.floor(n) : value);
+}
+
 // =========================
 // Provider helpers
 // =========================
@@ -208,6 +289,99 @@ export function setFinalPrompt(value: string): void {
 }
 
 // =========================
+// Prompt content options
+// =========================
+
+export function getIncludeTitle(): boolean {
+  return getBoolPref(PREF_INCLUDE_TITLE, true);
+}
+
+export function setIncludeTitle(value: boolean): void {
+  setBoolPref(PREF_INCLUDE_TITLE, value);
+}
+
+export function getIncludeCreators(): boolean {
+  return getBoolPref(PREF_INCLUDE_CREATORS, true);
+}
+
+export function setIncludeCreators(value: boolean): void {
+  setBoolPref(PREF_INCLUDE_CREATORS, value);
+}
+
+export function getIncludePublicationTitle(): boolean {
+  return getBoolPref(PREF_INCLUDE_PUBLICATION_TITLE, true);
+}
+
+export function setIncludePublicationTitle(value: boolean): void {
+  setBoolPref(PREF_INCLUDE_PUBLICATION_TITLE, value);
+}
+
+export function getIncludeDate(): boolean {
+  return getBoolPref(PREF_INCLUDE_DATE, true);
+}
+
+export function setIncludeDate(value: boolean): void {
+  setBoolPref(PREF_INCLUDE_DATE, value);
+}
+
+export function getIncludeExistingTags(): boolean {
+  return getBoolPref(PREF_INCLUDE_EXISTING_TAGS, true);
+}
+
+export function setIncludeExistingTags(value: boolean): void {
+  setBoolPref(PREF_INCLUDE_EXISTING_TAGS, value);
+}
+
+export function getIncludeAbstract(): boolean {
+  return getBoolPref(PREF_INCLUDE_ABSTRACT, true);
+}
+
+export function setIncludeAbstract(value: boolean): void {
+  setBoolPref(PREF_INCLUDE_ABSTRACT, value);
+}
+
+export function getIncludePdfText(): boolean {
+  return getBoolPref(PREF_INCLUDE_PDF_TEXT, false);
+}
+
+export function setIncludePdfText(value: boolean): void {
+  setBoolPref(PREF_INCLUDE_PDF_TEXT, value);
+}
+
+export function getPdfTextMode(): PdfTextMode {
+  const raw = getStringPref(PREF_PDF_TEXT_MODE).trim().toLowerCase();
+  return raw === "full_text" ? "full_text" : "first_n_chars";
+}
+
+export function setPdfTextMode(value: PdfTextMode): void {
+  setStringPref(PREF_PDF_TEXT_MODE, value);
+}
+
+export function getPdfTextCharLimit(): number {
+  return getIntPref(PREF_PDF_TEXT_CHAR_LIMIT, 4000);
+}
+
+export function setPdfTextCharLimit(value: number): void {
+  const n = Number(value);
+  const safe = Number.isFinite(n) && n > 0 ? Math.floor(n) : 4000;
+  setIntPref(PREF_PDF_TEXT_CHAR_LIMIT, safe);
+}
+
+export function getPromptContentOptions(): PromptContentOptions {
+  return {
+    includeTitle: getIncludeTitle(),
+    includeCreators: getIncludeCreators(),
+    includePublicationTitle: getIncludePublicationTitle(),
+    includeDate: getIncludeDate(),
+    includeExistingTags: getIncludeExistingTags(),
+    includeAbstract: getIncludeAbstract(),
+    includePdfText: getIncludePdfText(),
+    pdfTextMode: getPdfTextMode(),
+    pdfTextCharLimit: getPdfTextCharLimit(),
+  };
+}
+
+// =========================
 // Settings dialog (Services.prompt with window.* fallbacks)
 // =========================
 
@@ -265,6 +439,18 @@ function confirmDialog(
   return !!(win as any).confirm(`${title}\n\n${text}`);
 }
 
+function yesNoDialog(
+  win: _ZoteroTypes.MainWindow,
+  title: string,
+  text: string,
+  currentValue: boolean,
+): boolean | null {
+  const options = ["Yes", "No"];
+  const picked = selectDialog(win, title, text, options, currentValue ? 0 : 1);
+  if (picked == null) return null;
+  return picked === 0;
+}
+
 // =========================
 // Settings dialog
 // =========================
@@ -300,8 +486,8 @@ export function openAutotagSettings(win: _ZoteroTypes.MainWindow): void {
       break;
 
     case "gemini":
-      modelOptions = ["gemini-1.5-flash", "gemini-1.5-pro"];
-      defaultModel = "gemini-1.5-flash";
+      modelOptions = ["gemini-3.1-pro-preview", "gemini-2.5-flash", "gemini-2.5-pro"];
+      defaultModel = "gemini-2.5-flash";
       break;
 
     case "deepseek":
@@ -358,6 +544,109 @@ export function openAutotagSettings(win: _ZoteroTypes.MainWindow): void {
     }
   }
 
+  // ---------- Content selection ----------
+  const includeTitle = yesNoDialog(
+    win,
+    "Autotag settings",
+    "Send paper titles to the LLM?",
+    getIncludeTitle(),
+  );
+  if (includeTitle == null) return;
+  setIncludeTitle(includeTitle);
+
+  const includeCreators = yesNoDialog(
+    win,
+    "Autotag settings",
+    "Send authors/creators to the LLM?",
+    getIncludeCreators(),
+  );
+  if (includeCreators == null) return;
+  setIncludeCreators(includeCreators);
+
+  const includePublicationTitle = yesNoDialog(
+    win,
+    "Autotag settings",
+    "Send publication/journal title to the LLM?",
+    getIncludePublicationTitle(),
+  );
+  if (includePublicationTitle == null) return;
+  setIncludePublicationTitle(includePublicationTitle);
+
+  const includeDate = yesNoDialog(
+    win,
+    "Autotag settings",
+    "Send publication date to the LLM?",
+    getIncludeDate(),
+  );
+  if (includeDate == null) return;
+  setIncludeDate(includeDate);
+
+  const includeExistingTags = yesNoDialog(
+    win,
+    "Autotag settings",
+    "Send existing Zotero tags to the LLM?",
+    getIncludeExistingTags(),
+  );
+  if (includeExistingTags == null) return;
+  setIncludeExistingTags(includeExistingTags);
+
+  const includeAbstract = yesNoDialog(
+    win,
+    "Autotag settings",
+    "Send abstract text to the LLM?",
+    getIncludeAbstract(),
+  );
+  if (includeAbstract == null) return;
+  setIncludeAbstract(includeAbstract);
+
+  const includePdfText = yesNoDialog(
+    win,
+    "Autotag settings",
+    "Send extracted PDF text to the LLM when available?",
+    getIncludePdfText(),
+  );
+  if (includePdfText == null) return;
+  setIncludePdfText(includePdfText);
+
+  if (includePdfText) {
+    const modeOptions = [
+      "First N characters of extracted PDF text",
+      "Full extracted PDF text",
+    ];
+    const currentMode = getPdfTextMode();
+    const modeIndex = currentMode === "full_text" ? 1 : 0;
+
+    const pickedModeIndex = selectDialog(
+      win,
+      "Autotag settings",
+      "Choose how much extracted PDF text to send:",
+      modeOptions,
+      modeIndex,
+    );
+    if (pickedModeIndex == null) return;
+
+    const mode: PdfTextMode =
+      pickedModeIndex === 1 ? "full_text" : "first_n_chars";
+    setPdfTextMode(mode);
+
+    if (mode === "first_n_chars") {
+      const rawLimit = promptDialog(
+        win,
+        "Autotag settings",
+        "Enter the number of characters of extracted PDF text to send per item:",
+        String(getPdfTextCharLimit()),
+      );
+      if (rawLimit == null) return;
+
+      const parsedLimit = Number(String(rawLimit).trim());
+      setPdfTextCharLimit(
+        Number.isFinite(parsedLimit) && parsedLimit > 0
+          ? Math.floor(parsedLimit)
+          : 4000,
+      );
+    }
+  }
+
   // ---------- Seed keywords ----------
   const seedsRaw = promptDialog(
     win,
@@ -380,4 +669,30 @@ export function openAutotagSettings(win: _ZoteroTypes.MainWindow): void {
   if (promptRaw != null) {
     setFinalPrompt(promptRaw.trim());
   }
+
+  // ---------- Final summary ----------
+  const summary = getPromptContentOptions();
+  const pdfSummary = summary.includePdfText
+    ? summary.pdfTextMode === "full_text"
+      ? "enabled (full text)"
+      : `enabled (${summary.pdfTextCharLimit} chars)`
+    : "disabled";
+
+  confirmDialog(
+    win,
+    "Autotag settings saved",
+    [
+      `Provider: ${provider}`,
+      `Model: ${selectedModel || "(unchanged)"}`,
+      "",
+      "Content sent to LLM:",
+      `- title: ${summary.includeTitle ? "yes" : "no"}`,
+      `- creators: ${summary.includeCreators ? "yes" : "no"}`,
+      `- publication title: ${summary.includePublicationTitle ? "yes" : "no"}`,
+      `- date: ${summary.includeDate ? "yes" : "no"}`,
+      `- existing tags: ${summary.includeExistingTags ? "yes" : "no"}`,
+      `- abstract: ${summary.includeAbstract ? "yes" : "no"}`,
+      `- PDF text: ${pdfSummary}`,
+    ].join("\n"),
+  );
 }

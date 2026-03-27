@@ -15,6 +15,7 @@ import {
   getSelectedProvider,
   getApiKeyForProvider,
   openAutotagSettings,
+  getPromptContentOptions,
 } from "./autotagPrefs";
 
 export type ItemMetadata = {
@@ -26,18 +27,158 @@ export type ItemMetadata = {
   date: string;
   creators: string[];
   tags: string[];
+  pdfText?: string;
 };
+
+function debug(msg: string) {
+  (Zotero as any).debug?.(msg);
+}
+
+function showError(win: _ZoteroTypes.MainWindow, title: string, e: unknown) {
+  const err = e instanceof Error ? e : new Error(String(e));
+  const message = err.message || String(e);
+  const stack = err.stack || "";
+
+  debug(`Autotag: ${title}: ${message}\n${stack}`);
+
+  try {
+    (Zotero as any).logError?.(err);
+  } catch {
+    // ignore
+  }
+
+  const detail = stack && !stack.includes(message)
+    ? `${message}\n\n${stack}`
+    : message;
+
+  (win as any).alert(`${title}\n\n${detail}`);
+}
+
+/**
+ * Best-effort cleanup for extracted attachment text.
+ */
+function normalizeExtractedText(text: string): string {
+  return String(text || "")
+    .split("\x00").join(" ")
+    .replace(/\r/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .replace(/[ \t]{2,}/g, " ")
+    .trim();
+}
+
+/**
+ * Truncate extracted text according to current settings.
+ */
+function truncatePdfText(text: string): string {
+  const options = getPromptContentOptions();
+  const cleaned = normalizeExtractedText(text);
+
+  if (!cleaned) return "";
+
+  if (options.pdfTextMode === "full_text") {
+    return cleaned;
+  }
+
+  const limit =
+    Number.isFinite(options.pdfTextCharLimit) && options.pdfTextCharLimit > 0
+      ? Math.floor(options.pdfTextCharLimit)
+      : 4000;
+
+  if (cleaned.length <= limit) return cleaned;
+  return cleaned.slice(0, limit).trim();
+}
+
+/**
+ * Try to get extracted text from the first suitable PDF attachment.
+ *
+ * Priority:
+ * 1. Imported PDF attachment
+ * 2. Any PDF attachment
+ * 3. HTML attachment as fallback
+ *
+ * Returns empty string if none is available or if extraction text is missing.
+ */
+async function getExtractedAttachmentTextForItem(item: any): Promise<string> {
+  try {
+    // If the selected item is itself an attachment, handle directly.
+    if (item?.isAttachment?.()) {
+      const contentType = String(item.attachmentContentType || "").toLowerCase();
+      if (contentType === "application/pdf" || contentType === "text/html") {
+        const text = await item.attachmentText;
+        return truncatePdfText(String(text || ""));
+      }
+      return "";
+    }
+
+    if (!item?.isRegularItem?.()) {
+      return "";
+    }
+
+    const attachmentIDs = item.getAttachments?.() || [];
+    if (!attachmentIDs.length) return "";
+
+    const attachments = attachmentIDs
+      .map((id: number) => {
+        try {
+          return Zotero.Items.get(id);
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    if (!attachments.length) return "";
+
+    const importedPdf = attachments.find((att: any) => {
+      const ct = String(att?.attachmentContentType || "").toLowerCase();
+      return ct === "application/pdf" && !!att?.isImportedAttachment?.();
+    });
+
+    const anyPdf = attachments.find((att: any) => {
+      const ct = String(att?.attachmentContentType || "").toLowerCase();
+      return ct === "application/pdf";
+    });
+
+    const htmlAttachment = attachments.find((att: any) => {
+      const ct = String(att?.attachmentContentType || "").toLowerCase();
+      return ct === "text/html";
+    });
+
+    const chosen = importedPdf || anyPdf || htmlAttachment;
+    if (!chosen) return "";
+
+    try {
+      const text = await chosen.attachmentText;
+      return truncatePdfText(String(text || ""));
+    } catch (e) {
+      debug(`Autotag: failed to read attachment text for item ${item.key}: ${String(e)}`);
+      return "";
+    }
+  } catch (e) {
+    debug(`Autotag: getExtractedAttachmentTextForItem failed for ${item?.key || "[unknown]"}: ${String(e)}`);
+    return "";
+  }
+}
 
 /**
  * Convert a Zotero item into an ItemMetadata structure.
+ *
+ * We still collect the normal bibliographic fields here. The prompt builder
+ * will decide which ones to actually send based on prefs.
  */
-function getItemMetadata(item: any): ItemMetadata {
+async function getItemMetadata(item: any): Promise<ItemMetadata> {
   const creators = (item.getCreators?.() || []).map((c: any) => {
     if (c.lastName && c.firstName) return `${c.lastName}, ${c.firstName}`;
     return c.name || c.lastName || "[unknown creator]";
   });
 
   const tags = (item.getTags?.() || []).map((t: any) => t.tag);
+  const options = getPromptContentOptions();
+
+  let pdfText = "";
+  if (options.includePdfText) {
+    pdfText = await getExtractedAttachmentTextForItem(item);
+  }
 
   return {
     key: item.key,
@@ -48,6 +189,7 @@ function getItemMetadata(item: any): ItemMetadata {
     date: item.getField?.("date") || "",
     creators,
     tags,
+    pdfText: pdfText || "",
   };
 }
 
@@ -69,21 +211,6 @@ function findToolsMenuPopup(doc: Document): Element | null {
   if (q3) return q3;
 
   return null;
-}
-
-function debug(msg: string) {
-  (Zotero as any).debug?.(msg);
-}
-
-function showError(win: _ZoteroTypes.MainWindow, title: string, e: unknown) {
-  const msg = e instanceof Error ? e.stack || e.message : String(e);
-  debug(`Autotag: ${title}: ${msg}`);
-  try {
-    (Zotero as any).logError?.(e);
-  } catch {
-    // ignore
-  }
-  (win as any).alert(`${title}\n\n${msg}`);
 }
 
 /**
@@ -157,7 +284,7 @@ export function registerAutotagToolsMenu(win: _ZoteroTypes.MainWindow): void {
     try {
       const pane =
         (Zotero as any).getActiveZoteroPane?.() ||
-        (Zotero as any).Pane?.getActive?.(); // harmless fallback if present
+        (Zotero as any).Pane?.getActive?.();
 
       if (!pane) {
         (win as any).alert("Autotag: No active Zotero pane found.");
@@ -176,7 +303,6 @@ export function registerAutotagToolsMenu(win: _ZoteroTypes.MainWindow): void {
       if (provider !== "local") {
         const apiKey = getApiKeyForProvider(provider);
         if (!apiKey) {
-          // Services.prompt may be unavailable in some contexts; fall back to window.confirm
           const ask =
             Services?.prompt?.confirm?.(
               win,
@@ -200,9 +326,11 @@ export function registerAutotagToolsMenu(win: _ZoteroTypes.MainWindow): void {
         }
       }
 
-      const payload: ItemMetadata[] = selectedItems.map((item: any) =>
-        getItemMetadata(item),
-      );
+      // Build payload asynchronously because PDF extraction can be async
+      const payload: ItemMetadata[] = [];
+      for (const item of selectedItems) {
+        payload.push(await getItemMetadata(item));
+      }
 
       await runAutotagForItems(payload, win);
     } catch (e) {
