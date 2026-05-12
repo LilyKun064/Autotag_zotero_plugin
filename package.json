@@ -1,7 +1,7 @@
 {
   "name": "zotero-autotag",
   "type": "module",
-  "version": "5.0.1",
+  "version": "5.0.2",
   "description": "Autotag – Automatically assign tags to Zotero items using LLMs.",
 
   "config": {
