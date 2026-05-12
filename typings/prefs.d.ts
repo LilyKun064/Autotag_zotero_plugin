@@ -13,6 +13,8 @@ declare namespace _ZoteroTypes {
       "customModel.openai": string;
       "baseURL.deepseek": string;
       "customModel.deepseek": string;
+      "baseURL.openrouter": string;
+      "customModel.openrouter": string;
     };
   }
 }
