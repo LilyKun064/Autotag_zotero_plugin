@@ -60,13 +60,9 @@ export const OpenRouterProvider: LLMProvider = {
     };
 
     // Add optional attribution headers (these help with OpenRouter rankings)
-    try {
-      const addonURL = "https://github.com/LilyKun064/Autotag_zotero_plugin";
-      headers["HTTP-Referer"] = addonURL;
-      headers["X-OpenRouter-Title"] = "Autotag Zotero Plugin";
-    } catch (e) {
-      // Ignore if attribution headers fail
-    }
+    const addonURL = "https://github.com/LilyKun064/Autotag_zotero_plugin";
+    headers["HTTP-Referer"] = addonURL;
+    headers["X-OpenRouter-Title"] = "Autotag Zotero Plugin";
 
     const response = await Zotero.HTTP.request("POST", endpoint, {
       headers,
