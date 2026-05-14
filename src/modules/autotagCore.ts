@@ -10,6 +10,7 @@ import {
   Services as PrefsServices,
   getSeedKeywords,
   getModelForProvider,
+  getCustomModelForProvider,
   getFinalPrompt,
   getPromptContentOptions,
 } from "./autotagPrefs";
@@ -209,7 +210,9 @@ async function callLLMForTags(
   sourceItems: ItemMetadata[],
 ): Promise<LLMTagResult> {
   const provider = getLLMProvider();
-  const model = getModelForProvider(provider.name) || "(default)";
+  const customModel = getCustomModelForProvider(provider.name).trim();
+  const selectedModel = getModelForProvider(provider.name).trim();
+  const model = customModel || selectedModel || "(default)";
 
   let content = "";
 
@@ -230,15 +233,15 @@ async function callLLMForTags(
       const apiVersion = match ? match[1] : "your current API version";
       throw new Error(
         `This model is not supported by the current API version (${apiVersion}).\n\n` +
-          "Please select a different model in Autotag settings.",
+        "Please select a different model in Autotag settings.",
       );
     }
 
     if (msg.includes("404") && msg.toLowerCase().includes("not found")) {
       throw new Error(
         "This model is not available anymore according to the provider.\n\n" +
-          "Please select another model in Autotag settings.\n\n" +
-          "Note: If you're using local model, the model you're calling might not be installed. ",
+        "Please select another model in Autotag settings.\n\n" +
+        "Note: If you're using local model, the model you're calling might not be installed. ",
       );
     }
 
@@ -255,14 +258,14 @@ async function callLLMForTags(
   } catch {
     throw new Error(
       `Invalid JSON returned by ${provider.name} (${model}).\n\n` +
-        `First 1000 chars of raw response:\n${content.substring(0, 1000)}`,
+      `First 1000 chars of raw response:\n${content.substring(0, 1000)}`,
     );
   }
 
   if (!parsed?.items || !Array.isArray(parsed.items)) {
     throw new Error(
       `LLM JSON missing items array (${provider.name}, ${model}).\n\n` +
-        `Returned JSON:\n${JSON.stringify(parsed, null, 2).substring(0, 1000)}`,
+      `Returned JSON:\n${JSON.stringify(parsed, null, 2).substring(0, 1000)}`,
     );
   }
 
@@ -437,7 +440,9 @@ export async function runAutotagForItems(
   }
 
   const provider = getLLMProvider();
-  const model = getModelForProvider(provider.name) || "(default)";
+  const customModel = getCustomModelForProvider(provider.name).trim();
+  const selectedModel = getModelForProvider(provider.name).trim();
+  const model = customModel || selectedModel || "(default)";
   const prompt = buildPromptFromItems(items);
 
   (Zotero as any).debug?.(
@@ -455,7 +460,7 @@ export async function runAutotagForItems(
 
   (Zotero as any).debug?.(
     `Autotag input keys: ${JSON.stringify(inputKeys)}\n` +
-      `Autotag output keys: ${JSON.stringify(outputKeys)}`,
+    `Autotag output keys: ${JSON.stringify(outputKeys)}`,
   );
 
   const edited = previewAndEditTags(llmResult, items, mainWin);

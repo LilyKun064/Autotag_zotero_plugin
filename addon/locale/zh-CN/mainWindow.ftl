@@ -9,3 +9,8 @@ item-section-example2-sidenav-tooltip =
 item-section-example2-button-tooltip =
     .tooltiptext = 移除此面板
 item-info-row-example-label = 示例行
+
+autotag-settings-menu =
+    .label = Autotag: 设置…
+autotag-run-menu =
+    .label = Autotag: 标记选中条目
