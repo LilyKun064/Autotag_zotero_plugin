@@ -26,7 +26,14 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Release
-        run: npm run release
+      - name: Get version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: .scaffold/build/autotag-${{ steps.version.outputs.version }}.xpi
+          generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
