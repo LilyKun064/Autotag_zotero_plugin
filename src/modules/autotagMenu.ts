@@ -10,6 +10,7 @@
 declare const Zotero: _ZoteroTypes.Zotero;
 
 import { runAutotagForItems } from "./autotagCore";
+import type { LLMProvider } from "./llmproviders/LLMProvider";
 import {
   Services, // from autotagPrefs (Z8-safe)
   getSelectedProvider,
@@ -17,6 +18,8 @@ import {
   openAutotagSettings,
   getPromptContentOptions,
 } from "./autotagPrefs";
+import { getLLMProvider } from "./llmproviders";
+import { getString } from "../utils/locale";
 
 export type ItemMetadata = {
   key: string;
@@ -259,7 +262,8 @@ export function registerAutotagToolsMenu(win: _ZoteroTypes.MainWindow): void {
      ========================= */
   const settingsItem = xulDoc.createXULElement("menuitem");
   settingsItem.id = "autotag-settings-menuitem";
-  settingsItem.setAttribute("label", "Autotag: settings…");
+  const settingsLabel = getString("autotag-settings-menu") || "Autotag: settings…";
+  settingsItem.setAttribute("label", settingsLabel);
   settingsItem.setAttribute("class", "menuitem-iconic autotag-menuitem");
   settingsItem.removeAttribute("image");
 
@@ -276,7 +280,8 @@ export function registerAutotagToolsMenu(win: _ZoteroTypes.MainWindow): void {
      ========================= */
   const runItem = xulDoc.createXULElement("menuitem");
   runItem.id = "autotag-run-menuitem";
-  runItem.setAttribute("label", "Autotag: tag selected items");
+  const runLabel = getString("autotag-run-menu") || "Autotag: tag selected items";
+  runItem.setAttribute("label", runLabel);
   runItem.setAttribute("class", "menuitem-iconic autotag-menuitem");
   runItem.removeAttribute("image");
 
@@ -308,11 +313,11 @@ export function registerAutotagToolsMenu(win: _ZoteroTypes.MainWindow): void {
               win,
               "Autotag",
               "No API key is configured for this provider.\n\n" +
-                "Would you like to open Autotag settings now?",
+              "Would you like to open Autotag settings now?",
             ) ??
             (win as any).confirm(
               "Autotag\n\nNo API key is configured for this provider.\n\n" +
-                "Would you like to open Autotag settings now?",
+              "Would you like to open Autotag settings now?",
             );
 
           if (ask) {

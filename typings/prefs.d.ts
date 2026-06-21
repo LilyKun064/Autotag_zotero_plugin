@@ -9,10 +9,16 @@ declare namespace _ZoteroTypes {
     PluginPrefsMap: {
       "enable": boolean;
       "input": string;
+      "apiKey.openai": string;
+      "apiKey.gemini": string;
+      "apiKey.deepseek": string;
+      "apiKey.openrouter": string;
       "baseURL.openai": string;
       "customModel.openai": string;
       "baseURL.deepseek": string;
       "customModel.deepseek": string;
+      "baseURL.openrouter": string;
+      "customModel.openrouter": string;
     };
   }
 }

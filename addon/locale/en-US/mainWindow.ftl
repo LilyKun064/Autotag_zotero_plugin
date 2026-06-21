@@ -9,3 +9,8 @@ item-section-example2-sidenav-tooltip =
 item-section-example2-button-tooltip =
     .tooltiptext = Unregister this section
 item-info-row-example-label = Example Row
+
+autotag-settings-menu =
+    .label = Autotag: settings…
+autotag-run-menu =
+    .label = Autotag: tag selected items

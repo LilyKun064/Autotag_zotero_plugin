@@ -10,7 +10,14 @@ It is built for people who rely on Zotero every day and have reached the point w
 ---
 ## What's NEW
 
-### As of March 26, 2026: 
+### As of May 2026 (v5.0.5):
+Autotag now supports **Zotero 9.0.x** with improved menu integration and:
+- **OpenRouter** as a new LLM provider, giving access to models from Anthropic, OpenAI, Google, DeepSeek, and more
+- Fixed custom model display in settings and success messages
+- Improved API key configuration for all providers
+- Menu items now reliably appear in Zotero 9 Tools menu
+
+### Previous Update (v4.0.2):
 Autotag 4.0.2 now allows you to: 
 - choose what info to be uploaded to LLM
 - include full-text pdf for better tags
@@ -33,6 +40,9 @@ You can now choose between:
 
 - DeepSeek
     Use DeepSeek models for strong reasoning focused tagging.
+
+- OpenRouter
+    Access a wide variety of models from Anthropic, OpenAI, Google, DeepSeek, and other providers through a single API key.
 
 - Local LLMs via Ollama
     Run tagging completely offline using local models such as LLaMA, Mistral, or Qwen through Ollama.
@@ -76,6 +86,8 @@ It exists to **remove the burden of manual tagging** while keeping everything in
 4. Choose the downloaded .xpi
 
 5. Restart Zotero.
+
+**Compatibility:** Works with Zotero 6.999 through 9.0.x
 
 ## Setting Up
 

@@ -37,20 +37,24 @@ const PREF_PROVIDER = `${PREF_BRANCH}llmProvider`;
 const PREF_API_KEY_OPENAI = `${PREF_BRANCH}apiKey.openai`;
 const PREF_API_KEY_GEMINI = `${PREF_BRANCH}apiKey.gemini`;
 const PREF_API_KEY_DEEPSEEK = `${PREF_BRANCH}apiKey.deepseek`;
+const PREF_API_KEY_OPENROUTER = `${PREF_BRANCH}apiKey.openrouter`;
 
 // Models
 const PREF_MODEL_OPENAI = `${PREF_BRANCH}model.openai`;
 const PREF_MODEL_GEMINI = `${PREF_BRANCH}model.gemini`;
 const PREF_MODEL_DEEPSEEK = `${PREF_BRANCH}model.deepseek`;
+const PREF_MODEL_OPENROUTER = `${PREF_BRANCH}model.openrouter`;
 const PREF_MODEL_LOCAL = `${PREF_BRANCH}model.local`;
 
 // Custom base URLs
 const PREF_BASE_URL_OPENAI = `${PREF_BRANCH}baseURL.openai`;
 const PREF_BASE_URL_DEEPSEEK = `${PREF_BRANCH}baseURL.deepseek`;
+const PREF_BASE_URL_OPENROUTER = `${PREF_BRANCH}baseURL.openrouter`;
 
 // Custom model IDs
 const PREF_CUSTOM_MODEL_OPENAI = `${PREF_BRANCH}customModel.openai`;
 const PREF_CUSTOM_MODEL_DEEPSEEK = `${PREF_BRANCH}customModel.deepseek`;
+const PREF_CUSTOM_MODEL_OPENROUTER = `${PREF_BRANCH}customModel.openrouter`;
 
 // Seed keywords
 const PREF_SEED_KEYWORDS = `${PREF_BRANCH}seedKeywords`;
@@ -162,6 +166,8 @@ function getApiKeyPref(provider: string): string {
       return PREF_API_KEY_GEMINI;
     case "deepseek":
       return PREF_API_KEY_DEEPSEEK;
+    case "openrouter":
+      return PREF_API_KEY_OPENROUTER;
     case "openai":
     default:
       return PREF_API_KEY_OPENAI;
@@ -174,6 +180,8 @@ function getModelPref(provider: string): string {
       return PREF_MODEL_GEMINI;
     case "deepseek":
       return PREF_MODEL_DEEPSEEK;
+    case "openrouter":
+      return PREF_MODEL_OPENROUTER;
     case "local":
       return PREF_MODEL_LOCAL;
     case "openai":
@@ -186,6 +194,8 @@ function getBaseUrlPref(provider: string): string {
   switch (provider) {
     case "deepseek":
       return PREF_BASE_URL_DEEPSEEK;
+    case "openrouter":
+      return PREF_BASE_URL_OPENROUTER;
     case "openai":
     default:
       return PREF_BASE_URL_OPENAI;
@@ -196,6 +206,8 @@ function getCustomModelPref(provider: string): string {
   switch (provider) {
     case "deepseek":
       return PREF_CUSTOM_MODEL_DEEPSEEK;
+    case "openrouter":
+      return PREF_CUSTOM_MODEL_OPENROUTER;
     case "openai":
     default:
       return PREF_CUSTOM_MODEL_OPENAI;
@@ -249,7 +261,7 @@ export function setModelForProvider(provider: string, model: string): void {
 // =========================
 
 export function getBaseUrlForProvider(provider: string): string {
-  if (provider !== "openai" && provider !== "deepseek") return "";
+  if (provider !== "openai" && provider !== "deepseek" && provider !== "openrouter") return "";
 
   const prefKey = getBaseUrlPref(provider);
   try {
@@ -261,7 +273,7 @@ export function getBaseUrlForProvider(provider: string): string {
 }
 
 export function setBaseUrlForProvider(provider: string, value: string): void {
-  if (provider !== "openai" && provider !== "deepseek") return;
+  if (provider !== "openai" && provider !== "deepseek" && provider !== "openrouter") return;
 
   const prefKey = getBaseUrlPref(provider);
   Zotero.Prefs.set(prefKey, value, true);
@@ -272,7 +284,7 @@ export function setBaseUrlForProvider(provider: string, value: string): void {
 // =========================
 
 export function getCustomModelForProvider(provider: string): string {
-  if (provider !== "openai" && provider !== "deepseek") return "";
+  if (provider !== "openai" && provider !== "deepseek" && provider !== "openrouter") return "";
 
   const prefKey = getCustomModelPref(provider);
   try {
@@ -284,7 +296,7 @@ export function getCustomModelForProvider(provider: string): string {
 }
 
 export function setCustomModelForProvider(provider: string, value: string): void {
-  if (provider !== "openai" && provider !== "deepseek") return;
+  if (provider !== "openai" && provider !== "deepseek" && provider !== "openrouter") return;
 
   const prefKey = getCustomModelPref(provider);
   Zotero.Prefs.set(prefKey, value, true);
@@ -523,8 +535,8 @@ function yesNoDialog(
 // =========================
 
 export function openAutotagSettings(win: _ZoteroTypes.MainWindow): void {
-  const providerLabels = ["OpenAI", "Gemini", "DeepSeek", "Local (Ollama)"];
-  const providerValues = ["openai", "gemini", "deepseek", "local"];
+  const providerLabels = ["OpenAI", "Gemini", "DeepSeek", "OpenRouter", "Local (Ollama)"];
+  const providerValues = ["openai", "gemini", "deepseek", "openrouter", "local"];
 
   const currentProvider = getSelectedProvider();
   const providerIndex = Math.max(providerValues.indexOf(currentProvider), 0);
@@ -542,11 +554,13 @@ export function openAutotagSettings(win: _ZoteroTypes.MainWindow): void {
   setSelectedProvider(provider);
 
   // ---------- Optional custom base URL ----------
-  if (provider === "openai" || provider === "deepseek") {
+  if (provider === "openai" || provider === "deepseek" || provider === "openrouter") {
     const defaultBaseUrl =
       provider === "openai"
         ? "https://api.openai.com/v1"
-        : "https://api.deepseek.com/v1";
+        : provider === "deepseek"
+          ? "https://api.deepseek.com/v1"
+          : "https://openrouter.ai/api/v1";
 
     const wantsCustomBaseUrl = yesNoDialog(
       win,
@@ -590,6 +604,21 @@ export function openAutotagSettings(win: _ZoteroTypes.MainWindow): void {
       defaultModel = "deepseek-chat";
       break;
 
+    case "openrouter":
+      modelOptions = [
+        "anthropic/claude-4.6-sonnet-20260217",
+        "anthropic/claude-4.7-opus-20260416",
+        "openai/gpt-4o",
+        "openai/gpt-4o-mini",
+        "google/gemini-3-flash-preview-20251217",
+        "deepseek/deepseek-v4-flash-20260423",
+        "deepseek/deepseek-v4-pro-20260423",
+        "moonshotai/kimi-k2.6-20260420",
+        "tencent/hy3-preview-20260421",
+      ];
+      defaultModel = "anthropic/claude-4.6-sonnet-20260217";
+      break;
+
     case "local":
       defaultModel = "";
       break;
@@ -609,7 +638,7 @@ export function openAutotagSettings(win: _ZoteroTypes.MainWindow): void {
     selectedModel = raw.trim();
   } else {
     const supportsCustomModel =
-      provider === "openai" || provider === "deepseek";
+      provider === "openai" || provider === "deepseek" || provider === "openrouter";
 
     const modelOptionsWithOther = supportsCustomModel
       ? [...modelOptions, "Other (enter custom model ID)"]
@@ -663,7 +692,7 @@ export function openAutotagSettings(win: _ZoteroTypes.MainWindow): void {
     setModelForProvider(provider, selectedModel);
   }
 
-  if (provider === "openai" || provider === "deepseek") {
+  if (provider === "openai" || provider === "deepseek" || provider === "openrouter") {
     setCustomModelForProvider(provider, selectedCustomModel);
   }
 
@@ -796,7 +825,7 @@ export function openAutotagSettings(win: _ZoteroTypes.MainWindow): void {
     win,
     "Autotag settings",
     "Edit the prompt Autotag sends to the LLM.\n\n" +
-      "This prompt will be reused for all future runs.",
+    "This prompt will be reused for all future runs.",
     getFinalPrompt(),
   );
   if (promptRaw != null) {
@@ -811,21 +840,26 @@ export function openAutotagSettings(win: _ZoteroTypes.MainWindow): void {
     : "disabled";
 
   const baseUrlSummary =
-    provider === "openai" || provider === "deepseek"
+    provider === "openai" || provider === "deepseek" || provider === "openrouter"
       ? getBaseUrlForProvider(provider).trim() || "(default)"
       : "(not applicable)";
 
   const customModelSummary =
-    provider === "openai" || provider === "deepseek"
+    provider === "openai" || provider === "deepseek" || provider === "openrouter"
       ? getCustomModelForProvider(provider).trim() || "(none)"
       : "(not applicable)";
+
+  const actualModel =
+    customModelSummary !== "(none)" && customModelSummary !== "(not applicable)"
+      ? customModelSummary
+      : selectedModel || "(unchanged)";
 
   confirmDialog(
     win,
     "Autotag settings saved",
     [
       `Provider: ${provider}`,
-      `Model: ${selectedModel || "(unchanged)"}`,
+      `Model: ${actualModel}`,
       `Custom API Base URL: ${baseUrlSummary}`,
       `Custom Model ID: ${customModelSummary}`,
       "",
