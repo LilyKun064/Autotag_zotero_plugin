@@ -262,8 +262,7 @@ export function registerAutotagToolsMenu(win: _ZoteroTypes.MainWindow): void {
      ========================= */
   const settingsItem = xulDoc.createXULElement("menuitem");
   settingsItem.id = "autotag-settings-menuitem";
-  const settingsLabel = getString("autotag-settings-menu") || "Autotag: settings…";
-  settingsItem.setAttribute("label", settingsLabel);
+  settingsItem.setAttribute("label", "Autotag: Settings");
   settingsItem.setAttribute("class", "menuitem-iconic autotag-menuitem");
   settingsItem.removeAttribute("image");
 
@@ -280,8 +279,7 @@ export function registerAutotagToolsMenu(win: _ZoteroTypes.MainWindow): void {
      ========================= */
   const runItem = xulDoc.createXULElement("menuitem");
   runItem.id = "autotag-run-menuitem";
-  const runLabel = getString("autotag-run-menu") || "Autotag: tag selected items";
-  runItem.setAttribute("label", runLabel);
+  runItem.setAttribute("label", "Autotag: Tag Selected Item(s)");
   runItem.setAttribute("class", "menuitem-iconic autotag-menuitem");
   runItem.removeAttribute("image");
 
