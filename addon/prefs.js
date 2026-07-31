@@ -9,6 +9,8 @@ pref("apiKey.openrouter", "");
 pref("baseURL.openai", "");
 pref("customModel.openai", "");
 
+pref("customModel.gemini", "");
+
 pref("baseURL.deepseek", "");
 pref("customModel.deepseek", "");
 

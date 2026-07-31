@@ -54,6 +54,7 @@ const PREF_BASE_URL_OPENROUTER = `${PREF_BRANCH}baseURL.openrouter`;
 // Custom model IDs
 const PREF_CUSTOM_MODEL_OPENAI = `${PREF_BRANCH}customModel.openai`;
 const PREF_CUSTOM_MODEL_DEEPSEEK = `${PREF_BRANCH}customModel.deepseek`;
+const PREF_CUSTOM_MODEL_GEMINI = `${PREF_BRANCH}customModel.gemini`;
 const PREF_CUSTOM_MODEL_OPENROUTER = `${PREF_BRANCH}customModel.openrouter`;
 
 // Seed keywords
@@ -204,10 +205,15 @@ function getBaseUrlPref(provider: string): string {
 
 function getCustomModelPref(provider: string): string {
   switch (provider) {
+    case "gemini":
+      return PREF_CUSTOM_MODEL_GEMINI;
+
     case "deepseek":
       return PREF_CUSTOM_MODEL_DEEPSEEK;
+
     case "openrouter":
       return PREF_CUSTOM_MODEL_OPENROUTER;
+
     case "openai":
     default:
       return PREF_CUSTOM_MODEL_OPENAI;
@@ -284,9 +290,17 @@ export function setBaseUrlForProvider(provider: string, value: string): void {
 // =========================
 
 export function getCustomModelForProvider(provider: string): string {
-  if (provider !== "openai" && provider !== "deepseek" && provider !== "openrouter") return "";
+  if (
+    provider !== "openai" &&
+    provider !== "gemini" &&
+    provider !== "deepseek" &&
+    provider !== "openrouter"
+  ) {
+    return "";
+  }
 
   const prefKey = getCustomModelPref(provider);
+
   try {
     const raw = Zotero.Prefs.get(prefKey, true);
     return raw == null ? "" : String(raw);
@@ -295,8 +309,18 @@ export function getCustomModelForProvider(provider: string): string {
   }
 }
 
-export function setCustomModelForProvider(provider: string, value: string): void {
-  if (provider !== "openai" && provider !== "deepseek" && provider !== "openrouter") return;
+export function setCustomModelForProvider(
+  provider: string,
+  value: string,
+): void {
+  if (
+    provider !== "openai" &&
+    provider !== "gemini" &&
+    provider !== "deepseek" &&
+    provider !== "openrouter"
+  ) {
+    return;
+  }
 
   const prefKey = getCustomModelPref(provider);
   Zotero.Prefs.set(prefKey, value, true);
@@ -595,8 +619,13 @@ export function openAutotagSettings(win: _ZoteroTypes.MainWindow): void {
       break;
 
     case "gemini":
-      modelOptions = ["gemini-3.1-pro-preview", "gemini-2.5-flash", "gemini-2.5-pro"];
-      defaultModel = "gemini-2.5-flash";
+      modelOptions = [
+        "gemini-3.6-flash",
+        "gemini-3.5-flash",
+        "gemini-3.1-flash-lite",
+        "gemini-3.1-pro-preview",
+      ];
+      defaultModel = "gemini-3.6-flash";
       break;
 
     case "deepseek":
@@ -638,8 +667,10 @@ export function openAutotagSettings(win: _ZoteroTypes.MainWindow): void {
     selectedModel = raw.trim();
   } else {
     const supportsCustomModel =
-      provider === "openai" || provider === "deepseek" || provider === "openrouter";
-
+      provider === "openai" ||
+      provider === "gemini" ||
+      provider === "deepseek" ||
+      provider === "openrouter";
     const modelOptionsWithOther = supportsCustomModel
       ? [...modelOptions, "Other (enter custom model ID)"]
       : modelOptions;
@@ -692,7 +723,12 @@ export function openAutotagSettings(win: _ZoteroTypes.MainWindow): void {
     setModelForProvider(provider, selectedModel);
   }
 
-  if (provider === "openai" || provider === "deepseek" || provider === "openrouter") {
+  if (
+    provider === "openai" ||
+    provider === "gemini" ||
+    provider === "deepseek" ||
+    provider === "openrouter"
+  ) {
     setCustomModelForProvider(provider, selectedCustomModel);
   }
 

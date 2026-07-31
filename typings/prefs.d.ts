@@ -15,6 +15,7 @@ declare namespace _ZoteroTypes {
       "apiKey.openrouter": string;
       "baseURL.openai": string;
       "customModel.openai": string;
+      "customModel.gemini": string;
       "baseURL.deepseek": string;
       "customModel.deepseek": string;
       "baseURL.openrouter": string;

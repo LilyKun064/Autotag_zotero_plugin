@@ -194,6 +194,7 @@ async function callOllamaGenerate(
         "Content-Type": "application/json",
       },
       body: JSON.stringify(body),
+      timeout: 300000
     });
   } catch (err: any) {
     throw new Error(
