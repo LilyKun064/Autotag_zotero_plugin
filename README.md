@@ -10,6 +10,10 @@ It is built for people who rely on Zotero every day and have reached the point w
 ---
 ## What's NEW
 
+### As of September 2026 (v6.0.2):
+- Added compatibility with **Zotero 10.0.x**
+- Existing Zotero 9 functionality remains supported
+
 ### As of May 2026 (v5.0.5):
 Autotag now supports **Zotero 9.0.x** with improved menu integration and:
 - **OpenRouter** as a new LLM provider, giving access to models from Anthropic, OpenAI, Google, DeepSeek, and more
