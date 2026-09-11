@@ -10,9 +10,15 @@ It is built for people who rely on Zotero every day and have reached the point w
 ---
 ## What's NEW
 
-### As of September 2026 (v6.0.2):
+### As of September 2026 (v7.0.0):
 - Added compatibility with **Zotero 10.0.x**
 - Existing Zotero 9 functionality remains supported
+
+### As of July 2026 (v6.0.1):
+
+* Updated the Gemini model list to include the latest supported models
+* Added a **Custom** option for Gemini, allowing users to enter a model name manually
+* Improved Ollama request handling to reduce timeout errors when using local models
 
 ### As of May 2026 (v5.0.5):
 Autotag now supports **Zotero 9.0.x** with improved menu integration and:
